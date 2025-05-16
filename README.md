@@ -10,6 +10,10 @@ its really WIP and MESSY but bear with me, this just a little personal project t
 
 There are stuff directly from reverence itself, some of those like fullbright textures need further modifications.
 
-One of the main,important,highly invested features would be... vertex lighting...yes its here and not crashing, major credits to @Overfloater
+One of the main,important,highly invested features would be... vertex lighting...yes its here and not crashing, major credits to @Overfloater,
+it uses elights and dlights from maps and events like battery light, flashlight, muzzleflash, yeah it basically uses base half life's already implemented
+lighting on models system and just expands it on every model.
 
-features will be posted when i remember.. expect some source implementations.. going for that early extra early source look
+Using the "light.rad" file we can calculate and read elights from maps and boom better lighting.
+
+features will be posted when i remember.. expect some source implementations.. going for that early extra early source look.

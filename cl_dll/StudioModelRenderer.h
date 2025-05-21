@@ -16,6 +16,7 @@
 #include "gl/glext.h"
 #include "elight.h"
 #include "svdformat.h"
+#include "r_studioint.h"
 
 enum shadow_lightype_t
 {
@@ -86,10 +87,11 @@ public:
 	virtual void StudioCalcBoneAdj ( float dadt, float *adj, const byte *pcontroller1, const byte *pcontroller2, byte mouthopen );
 
 	// Get bone quaternions
-	virtual void StudioCalcBoneQuaterion ( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *q );
+	virtual void StudioCalcBoneQuaterion(int frame, float s, mstudiobone_t* pbone, mstudioanim_t* panim, float* adj, float* q, int index);
+	virtual void StudioCalcBoneQuaterionIdle(int frame, float s, mstudiobone_t* pbone, mstudioanim_t* panim, float* adj, float* q, int index);
 
 	// Get bone positions
-	virtual void StudioCalcBonePosition ( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *pos );
+	virtual void StudioCalcBonePosition(int frame, float s, mstudiobone_t* pbone, mstudioanim_t* panim, float* adj, float* pos, int index);
 
 	// Compute rotations
 	virtual void StudioCalcRotations ( float pos[][3], vec4_t *q, mstudioseqdesc_t *pseqdesc, mstudioanim_t *panim, float f );
@@ -119,9 +121,6 @@ public:
 
 	// Sets up rendering
 	virtual void StudioSetupRenderer( int rendermode );
-
-	// Draws shadows
-	virtual void GL_StudioDrawShadow( void );
 
 	// Sets up the shadow info
 	virtual void StudioSetupShadows( void );
@@ -163,7 +162,7 @@ public:
 	__forceinline void StudioChrome ( int normindex, int bone, const vec3_t& normal );
 
 	// Calculates final light values for a vertex
-	__forceinline void LightValueforVertex( vec3_t& outColor, int vertindex, int normindex, const vec3_t& normal );
+	__forceinline void LightValueforVertex( vec3_t& outColor, int vertindex, int normindex, const vec3_t& normal, const vec3_t& origin);
 
 	// Sets up bodypart pointers
 	virtual void StudioSetupModelSVD ( int bodypart );
@@ -360,6 +359,10 @@ public:
 	PFNGLCLIENTACTIVETEXTUREPROC	glClientActiveTexture;
 	PFNGLACTIVESTENCILFACEEXTPROC	glActiveStencilFaceEXT;
 
+	vec3_t			viewboneangles[512];
+	vec3_t			viewfirstboneangles[512];
+	vec3_t			lerpedboneangles;
+
 private:
 	// Pointer to the shadow volume data
 	svdheader_t		*m_pSVDHeader;
@@ -381,5 +384,4 @@ private:
 
 	cvar_t			*m_pCvarDirect;
 };
-extern engine_studio_api_t IEngineStudio;
 #endif // STUDIOMODELRENDERER_H

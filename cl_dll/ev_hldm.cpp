@@ -43,10 +43,9 @@ static int tracerCount[ 32 ];
 
 void V_PunchAxis( int axis, float punch );
 void VectorAngles( const float *forward, float *angles );
-
 void MuzzleFlash(int index, float r, float g, float b, float a, float radius, float life, float decay, Vector vecOrigin = Vector(0, 0, 0));
-extern Vector ev_recoilangle;
 
+extern Vector ev_recoilangle;
 extern cvar_t *cl_lw;
 
 #ifndef RANDOM_LONG
@@ -767,9 +766,7 @@ void EV_HLDM_WaterSplash(float x, float y, float z)
 	}
 
 	iWaterSplash = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/effects/splash2.spr");
-	pTemp = gEngfuncs.pEfxAPI->R_TempSprite(Vector(x, y, z),
-		Vector(0, 0, 0.2),
-		0.7, iWaterSplash, kRenderTransAdd, kRenderFxNone, 1.0, 0.5, FTENT_SPRANIMATE | FTENT_FADEOUT | FTENT_COLLIDEKILL);
+	pTemp = gEngfuncs.pEfxAPI->R_TempSprite(Vector(x, y, z),Vector(0, 0, 0.2),0.7, iWaterSplash, kRenderTransAdd, kRenderFxNone, 1.0, 0.5, FTENT_SPRANIMATE | FTENT_FADEOUT | FTENT_COLLIDEKILL);
 
 	if (pTemp)
 	{
@@ -929,6 +926,7 @@ void EV_FireGlock1( event_args_t *args )
 		gEngfuncs.SetViewAngles((float*)&recoil);
 
 		gHUD.m_flCrosshairSize += 10;
+		gHUD.ScreenShake(1.5f, 0.2f, 5.5f);
 	}
 
 	EV_GetDefaultShellInfo( args, origin, velocity, ShellVelocity, ShellOrigin, forward, right, up, 20, -12, 4 );
@@ -1198,6 +1196,7 @@ void EV_FireMP5( event_args_t *args )
 		gHUD.m_flRecoilTime = gEngfuncs.GetClientTime() + 0.1;
 
 		gHUD.m_flCrosshairSize += 12;
+		gHUD.ScreenShake(gEngfuncs.pfnRandomFloat(0.5, 1.5f), 0.2f, 5.5f);
 	}
 
 	EV_GetDefaultShellInfo( args, origin, velocity, ShellVelocity, ShellOrigin, forward, right, up, 20, -12, 4 );

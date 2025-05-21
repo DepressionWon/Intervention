@@ -62,22 +62,20 @@ void CHud::Think(void)
 		}
 		else
 		{
-			if (default_fov->value != 105)
-				gEngfuncs.Cvar_SetValue("default_fov", 105);
+			if (default_fov->value != 100)
+				gEngfuncs.Cvar_SetValue("default_fov", 100);
 		}
 	}
 
 	newfov = HUD_GetFOV();
 	if ( newfov == 0 )
 	{
-		m_iTargetFOV = default_fov->value;
+		m_iFOV = default_fov->value;
 	}
 	else
 	{
-		m_iTargetFOV = newfov;
+		m_iFOV = newfov;
 	}
-
-	m_iFOV = lerp(m_iFOV, m_iTargetFOV, gHUD.m_flTimeDelta * max((m_iTargetFOV * 0.35f), 5.5f));
 
 	// the clients fov is actually set in the client data update section of the hud
 
@@ -439,4 +437,40 @@ int CHud::GetNumWidth( int iNumber, int iFlags )
 
 }	
 
+void CHud::ScreenShake(const Vector& center, float amplitude, float duration, float frequency, float radius)
+{
+	int i;
+	float localAmplitude;
+	screen_shake_t shake;
+	auto pPlayer = gEngfuncs.GetLocalPlayer();
 
+	shake.duration = duration;  // 4.12 fixed
+	shake.frequency = frequency; // 8.8 fixed
+
+
+	localAmplitude = 0;
+
+	if (radius <= 0)
+		localAmplitude = amplitude;
+	else
+	{
+		Vector delta = center - pPlayer->origin;
+		float distance = delta.Length();
+
+		// Had to get rid of this falloff - it didn't work well
+		if (distance < radius)
+			localAmplitude = amplitude; // radius - distance;
+	}
+	if (0 != localAmplitude)
+	{
+		shake.amplitude = localAmplitude; // 4.12 fixed
+
+		memcpy(&m_ScreenShake, &shake, sizeof(screen_shake_t));
+		V_LocalScreenShake(&m_ScreenShake, amplitude, duration, frequency);
+	}
+}
+
+void CHud::ScreenShake(float amplitude, float duration, float frequency)
+{
+	V_LocalScreenShake(&m_ScreenShake, amplitude, duration, frequency);
+}

@@ -29,6 +29,7 @@
 #include "vgui_int.h"
 #include "interface.h"
 #include "svd_render.h"
+#include "r_water.h"
 
 #define DLLEXPORT __declspec( dllexport )
 
@@ -36,6 +37,10 @@
 cl_enginefunc_t gEngfuncs;
 CHud gHUD;
 TeamFortressViewport *gViewPort = NULL;
+
+bool InitScreenGlow(void);
+bool VidInitScreenGlow();
+void RenderScreenGlow(void);
 
 void InitInput (void);
 void EV_HookEvents( void );
@@ -146,6 +151,7 @@ int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 	memcpy(&gEngfuncs, pEnginefuncs, sizeof(cl_enginefunc_t));
 
 	EV_HookEvents();
+	InitScreenGlow();
 
 	gHUD.r_params.paused = 1;
 
@@ -169,6 +175,10 @@ int DLLEXPORT HUD_VidInit( void )
 
 	VGui_Startup();
 
+	g_WaterRenderer.VidInit();
+
+	VidInitScreenGlow();
+
 	return 1;
 }
 
@@ -187,6 +197,8 @@ void DLLEXPORT HUD_Init( void )
 	InitInput();
 	gHUD.Init();
 	Scheme_Init();
+
+	g_WaterRenderer.Init();
 }
 
 
@@ -201,7 +213,12 @@ redraw the HUD.
 
 int DLLEXPORT HUD_Redraw( float time, int intermission )
 {
-	gHUD.Redraw( time, intermission );
+	RenderScreenGlow();
+
+
+	glDepthRange(0.f, 0.f);
+	gHUD.Redraw(time, 0 != intermission);
+	glDepthRange(0.f, 1.f);
 	return 1;
 }
 

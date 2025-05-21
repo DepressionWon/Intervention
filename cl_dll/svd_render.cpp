@@ -55,7 +55,7 @@
 #define	PLANE_Z			2
 
 // Globals used by shadow rendering
-model_t* g_pWorld;
+model_t*	g_pWorld;
 int			g_visFrame = 0;
 int			g_frameCount = 0;
 Vector		g_viewOrigin;
@@ -79,10 +79,10 @@ GLuint		g_intermediateFBO = 0;
 // Framebuffer binding coming from Steam HL
 GLint		g_steamHLBoundFBO = 0;
 
-cvar_t* g_pCvarMSAA = NULL;
+cvar_t*		g_pCvarMSAA = NULL;
 
 // msurface_t struct size
-int g_msurfaceStructSize = 0;
+int			g_msurfaceStructSize = 0;
 
 // The renderer object, created on the stack.
 extern CGameStudioModelRenderer g_StudioRenderer;
@@ -304,7 +304,7 @@ void SVD_Init( void )
 
 	// Create intermediate FBO
 	if (g_bFBOSupported && g_useMSAA && g_msaaSetting > 0)
-		SVD_CreateIntermediateFBO();
+	SVD_CreateIntermediateFBO();
 }
 
 /*

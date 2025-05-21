@@ -316,7 +316,7 @@ public:
 	virtual int AddWeapon( void ) { ExtractAmmo( this ); return TRUE; };	// Return TRUE if you want to add yourself to the player
 
 	// generic "shared" ammo handlers
-	BOOL AddPrimaryAmmo( int iCount, char *szName, int iMaxClip, int iMaxCarry );
+	BOOL AddPrimaryAmmo(CBasePlayerWeapon* origin, int iCount, char *szName, int iMaxClip, int iMaxCarry );
 	BOOL AddSecondaryAmmo( int iCount, char *szName, int iMaxCarry );
 
 	virtual void UpdateItemInfo( void ) {};	// updates HUD state
@@ -1090,7 +1090,8 @@ enum handgrenade_e
 	HANDGRENADE_THROW2,	// medium
 	HANDGRENADE_THROW3,	// hard
 	HANDGRENADE_HOLSTER,
-	HANDGRENADE_DRAW
+	HANDGRENADE_DRAW,
+	HANDGRENADE_SHORTTHROW
 };
 
 class CHandGrenade : public CBasePlayerWeapon
@@ -1102,6 +1103,7 @@ public:
 	int GetItemInfo(ItemInfo *p);
 
 	void PrimaryAttack( void );
+	void SecondaryAttack(void);
 	BOOL Deploy( void );
 	BOOL CanHolster( void );
 	void Holster( int skiplocal = 0 );

@@ -33,10 +33,14 @@
 
 #include "studio.h"
 #include "com_model.h"
+#include "StudioModelRenderer.h"
+#include "GameStudioModelRenderer.h"
 
-#ifndef M_PI
-#define M_PI		3.14159265358979323846	// matches value in gcc v2 math.h
-#endif
+#include <cmath>
+#include <cassert>
+#include <iostream>
+
+extern CGameStudioModelRenderer g_StudioRenderer;
 
 ref_params_s g_refparams;
 extern ref_params_s g_pparams;
@@ -59,7 +63,6 @@ extern float	vJumpAngles[3];
 
 void ViewPunch(float frametime, float* ev_punchangle, float* punch);
 void VectorAngles( const float *forward, float *angles );
-void R_SetFrustum ( const vec3_t& v_origin, const vec3_t& v_angles, float viewsize );
 
 void UTIL_SmoothInterpolateAngles(float* startAngle, float* endAngle, float* finalAngle, float degreesPerSec);
 
@@ -105,7 +108,7 @@ float		v_cameraFocusAngle	= 35.0f;
 int			v_cameraMode = CAM_MODE_FOCUS;
 bool		v_resetCamera = true;
 
-static Vector ev_punchangle, ev_punch;
+Vector ev_punchangle, ev_punch;
 Vector v_jumpangle, v_jumppunch;
 Vector duck_punch, duck_angles;
 Vector ev_recoilangle;
@@ -132,8 +135,6 @@ cvar_t	v_iyaw_level		= {"v_iyaw_level", "0.3", 0, 0.3};
 cvar_t	v_iroll_level		= {"v_iroll_level", "0.1", 0, 0.1};
 cvar_t	v_ipitch_level		= {"v_ipitch_level", "0.3", 0, 0.3};
 
-cvar_t* cl_viewmodel_fudge;
-
 float	v_idlescale;  // used by TFC for concussion grenade effect
 int HUD_LAG_VALUE; // The sensitivity of the HUD-sway effect is dependent on the screen resolution.
 #define VEC_VIEW			Vector( 0, 0, 28 ) // bro be fr
@@ -146,7 +147,7 @@ CalcBob
 Bobs the viewmodel
 ===============
 */
-enum calcBobMode_t
+enum class CalcBobMode
 {
 	VB_COS,
 	VB_SIN,
@@ -154,30 +155,24 @@ enum calcBobMode_t
 	VB_SIN2
 };
 
-typedef struct clbob_s
-{
-	double bobtime;
-	float bob;
-	float lasttime;
-} clbob_t;
-
-void V_CalcBob(struct ref_params_s* pparams, const float freq, const calcBobMode_t mode, clbob_s* curbob)
+// Quakeworld bob code, this fixes jitters in the mutliplayer since the clock (pparams->time) isn't quite linear
+void V_CalcBob(struct ref_params_s* pparams, float frequencyMultiplier, const CalcBobMode& mode, double& bobtime, float& bob, float& lasttime)
 {
 	float cycle;
 	Vector vel;
-	float bob = 0.0f;
 
 	if (pparams->onground == -1 ||
-		pparams->time == curbob->lasttime)
+		pparams->time == lasttime)
 	{
 		// just use old value
-		return; // bob;
+		return;
 	}
 
-	curbob->lasttime = pparams->time;
+	lasttime = pparams->time;
 
-	curbob->bobtime += pparams->frametime * freq;
-	cycle = curbob->bobtime - (int)(curbob->bobtime / cl_bobcycle->value) * cl_bobcycle->value;
+	bobtime += pparams->frametime * frequencyMultiplier;
+
+	cycle = bobtime - (int)(bobtime / cl_bobcycle->value) * cl_bobcycle->value;
 	cycle /= cl_bobcycle->value;
 
 	if (cycle < cl_bobup->value)
@@ -196,19 +191,17 @@ void V_CalcBob(struct ref_params_s* pparams, const float freq, const calcBobMode
 
 	bob = sqrt(vel[0] * vel[0] + vel[1] * vel[1]) * cl_bob->value;
 
-	if (mode == VB_SIN)
+	if (mode == CalcBobMode::VB_SIN)
 		bob = bob * 0.3 + bob * 0.7 * sin(cycle);
-	else if (mode == VB_COS)
+	else if (mode == CalcBobMode::VB_COS)
 		bob = bob * 0.3 + bob * 0.7 * cos(cycle);
-	else if (mode == VB_SIN2)
+	else if (mode == CalcBobMode::VB_SIN2)
 		bob = bob * 0.3 + bob * 0.7 * sin(cycle) * sin(cycle);
-	else if (mode == VB_COS2)
+	else if (mode == CalcBobMode::VB_COS2)
 		bob = bob * 0.3 + bob * 0.7 * cos(cycle) * cos(cycle);
 
 	bob = min(bob, 4);
 	bob = max(bob, -7);
-
-	curbob->bob = lerp(curbob->bob, bob, pparams->frametime * 15.0f);
 }
 
 /*
@@ -367,22 +360,22 @@ V_CalcGunAngle
 */
 void V_CalcGunAngle ( struct ref_params_s *pparams )
 {	
-	cl_entity_t *viewent;
-	
+	cl_entity_t* viewent;
+
 	viewent = gEngfuncs.GetViewModel();
-	if ( !viewent )
+	if (!viewent)
 		return;
 
-	viewent->angles[YAW]   =  pparams->viewangles[YAW]   + pparams->crosshairangle[YAW];
+	viewent->angles[YAW] = pparams->viewangles[YAW] + pparams->crosshairangle[YAW];
 	viewent->angles[PITCH] = -pparams->viewangles[PITCH] + pparams->crosshairangle[PITCH] * 0.25;
-	viewent->angles[ROLL]  -= v_idlescale * sin(pparams->time*v_iroll_cycle.value) * v_iroll_level.value;
-	
-	// don't apply all of the v_ipitch to prevent normally unseen parts of viewmodel from coming into view.
-	viewent->angles[PITCH] -= v_idlescale * sin(pparams->time*v_ipitch_cycle.value) * (v_ipitch_level.value * 0.5);
-	viewent->angles[YAW]   -= v_idlescale * sin(pparams->time*v_iyaw_cycle.value) * v_iyaw_level.value;
+	viewent->angles[ROLL] -= (v_idlescale + 0.5f) * sin(pparams->time * v_iroll_cycle.value) * v_iroll_level.value;
 
-	VectorCopy( viewent->angles, viewent->curstate.angles );
-	VectorCopy( viewent->angles, viewent->latched.prevangles );
+	// don't apply all of the v_ipitch to prevent normally unseen parts of viewmodel from coming into view.
+	viewent->angles[PITCH] -= (v_idlescale + 0.5f) * sin(pparams->time * v_ipitch_cycle.value) * (v_ipitch_level.value * 0.5);
+	viewent->angles[YAW] -= (v_idlescale + 0.5f) * sin(pparams->time * v_iyaw_cycle.value) * v_iyaw_level.value;
+
+	VectorCopy(viewent->angles, viewent->curstate.angles);
+	VectorCopy(viewent->angles, viewent->latched.prevangles);
 }
 
 /*
@@ -394,10 +387,103 @@ Idle swaying
 */
 void V_AddIdle ( struct ref_params_s *pparams )
 {
-	pparams->viewangles[ROLL] += v_idlescale * sin(pparams->time*v_iroll_cycle.value) * v_iroll_level.value;
-	pparams->viewangles[PITCH] += v_idlescale * sin(pparams->time*v_ipitch_cycle.value) * v_ipitch_level.value;
-	pparams->viewangles[YAW] += v_idlescale * sin(pparams->time*v_iyaw_cycle.value) * v_iyaw_level.value;
+	pparams->viewangles[ROLL] += (v_idlescale + 0.25f) * sin(pparams->time * v_iroll_cycle.value) * v_iroll_level.value;
+	pparams->viewangles[PITCH] += (v_idlescale + 0.25f) * sin(pparams->time * v_ipitch_cycle.value) * v_ipitch_level.value;
+	pparams->viewangles[YAW] += (v_idlescale + 0.25f) * sin(pparams->time * v_iyaw_cycle.value) * v_iyaw_level.value;
 }
+
+
+/*
+==============
+V_LocalScreenShake
+
+Set screen shake
+==============
+*/
+void V_LocalScreenShake(screen_shake_t* shake, float amplitude, float duration, float frequency)
+{
+	// don't overwrite larger existing shake
+	if (amplitude > shake->amplitude)
+		shake->amplitude = amplitude;
+
+	shake->duration = duration;
+	shake->time = gHUD.m_flTime + shake->duration;
+	shake->frequency = frequency;
+	shake->next_shake = 0.0f; // apply immediately
+}
+
+/*
+=============
+V_CalcShake
+
+=============
+*/
+void V_CalcShake(screen_shake_t* shake)
+{
+	float frametime, fraction, freq;
+	int i;
+	float flTime = gHUD.m_flTime;
+
+	if (flTime > shake->time || shake->amplitude <= 0 || shake->frequency <= 0 || shake->duration <= 0)
+	{
+		// reset shake
+		if (shake->time != 0)
+		{
+			shake->time = 0;
+			shake->applied_angle = 0;
+			VectorClear(shake->applied_offset);
+		}
+
+		return;
+	}
+
+	frametime = gHUD.m_flTimeDelta;
+
+	if (flTime > shake->next_shake)
+	{
+		// get next shake time based on frequency over duration
+		shake->next_shake = (float)flTime + shake->frequency / shake->duration;
+
+		// randomize each shake
+		for (i = 0; i < 3; i++)
+			shake->offset[i] = gEngfuncs.pfnRandomFloat(-shake->amplitude, shake->amplitude);
+		shake->angle = gEngfuncs.pfnRandomFloat(-shake->amplitude * 0.25f, shake->amplitude * 0.25f);
+	}
+
+	// get initial fraction and frequency values over the duration
+	fraction = ((float)flTime - shake->time) / shake->duration;
+	freq = fraction != 0.0f ? (shake->frequency / fraction) * shake->frequency : 0.0f;
+
+	// quickly approach zero but apply time over sine wave
+	fraction *= fraction * sin(flTime * freq);
+
+	// apply shake offset
+	for (i = 0; i < 3; i++)
+		shake->applied_offset[i] = shake->offset[i] * fraction;
+
+	// apply roll angle
+	shake->applied_angle = shake->angle * fraction;
+
+	// decrease amplitude, but slower on longer shakes or higher frequency
+	shake->amplitude -= shake->amplitude * (frametime / (shake->frequency * shake->duration));
+}
+
+
+/*
+=============
+V_ApplyShake
+
+=============
+*/
+void V_ApplyShake(screen_shake_t* const shake, float* origin, float* angles, float factor)
+{
+	if (origin)
+		VectorMA(origin, factor, shake->applied_offset, origin);
+
+	if (angles)
+		angles[ROLL] += shake->applied_angle * factor;
+}
+
 
 void V_CalcHudLag(ref_params_t* pparams)
 {
@@ -504,29 +590,44 @@ void V_HandIntertia(ref_params_t* pparams, cl_entity_s* view, Vector original_an
 	view->origin = view->origin + up * (-pitch * 0.01f);
 }
 
-void V_RetractWeapon(struct ref_params_s* pparams, cl_entity_s* view)
+void V_HandleWalls(struct ref_params_s* pparams)
 {
+	static float flVal = 0.0f;
+	int idx = pparams->viewentity;
+
 	pmtrace_t tr;
+
 	Vector vecSrc = pparams->vieworg;
 	Vector vecDir = pparams->forward;
-	Vector vecEnd = vecSrc + vecDir * 30;
-	static float flFraction = 0.0f;
+	Vector vecEnd = vecSrc + (vecDir * 30);
 
-	// Store off the old count
-	gEngfuncs.pEventAPI->EV_PushPMStates();
+	auto p = gEngfuncs.GetViewModel();
 
-	// Now add in all of the players.
-	gEngfuncs.pEventAPI->EV_SetSolidPlayers(pparams->viewentity - 1);
-	gEngfuncs.pEventAPI->EV_SetTraceHull(2);
+	if (gHUD.m_iFOV == gHUD.DefaultFov())
+	{
+		gEngfuncs.pEventAPI->EV_SetUpPlayerPrediction(0, 1);
 
-	gEngfuncs.pEventAPI->EV_PlayerTrace(vecSrc, vecEnd, PM_NORMAL, pparams->viewentity, &tr);
+		// Store off the old count
+		gEngfuncs.pEventAPI->EV_PushPMStates();
 
-	gEngfuncs.pEventAPI->EV_PopPMStates();
+		// Now add in all of the players.
+		gEngfuncs.pEventAPI->EV_SetSolidPlayers(idx - 1);
 
-	flFraction = lerp(flFraction, tr.fraction, pparams->frametime * 10.0f);
+		gEngfuncs.pEventAPI->EV_SetTraceHull(2);
+		gEngfuncs.pEventAPI->EV_PlayerTrace(vecSrc, vecEnd, PM_NORMAL, -1, &tr);
 
-	view->origin = view->origin - ((vecDir * (1 - flFraction) * 10));
-	view->angles[1] += (1 - flFraction) * 5;
+		flVal = lerp(flVal, (1.0f - tr.fraction) * 1.5f, pparams->frametime * 12.0f);
+
+		gEngfuncs.pEventAPI->EV_PopPMStates();
+	}
+	else
+	{
+		flVal = lerp(flVal, 0.0f, pparams->frametime * 12.0f);
+	}
+
+	p->angles[0] += flVal * 13.0f;
+	p->origin -= Vector(pparams->up) * flVal * 4.0f;
+	p->origin -= Vector(pparams->forward) * flVal * 8.0f;
 }
 
 void V_Jump(struct ref_params_s* pparams, cl_entity_s* view)
@@ -609,59 +710,55 @@ void V_ApplyCrouchAngles(struct ref_params_s* pparams, cl_entity_s* view)
 
 void V_ApplyBob(struct ref_params_s* pparams, cl_entity_s* view)
 {
-	static clbob_s bobup, bobright;
+	static double bobTimes[3]{ 0.0f };
+	static float lastTimes[3]{ 0.0f };
+	static float flBobScale = 1.0f;
+	float bobForward, bobRight, bobUp;
 
-	// transform the view offset by the model's matrix to get the offset from
-	// model origin for the view
-	V_CalcBob(pparams, 0.75f, VB_SIN, &bobright); // right
-	V_CalcBob(pparams, 1.50f, VB_SIN, &bobup); // up
+	V_CalcBob(pparams, 0.75f, CalcBobMode::VB_SIN, bobTimes[0], bobRight, lastTimes[0]);
+	V_CalcBob(pparams, 1.50f, CalcBobMode::VB_SIN, bobTimes[1], bobUp, lastTimes[1]);
+	V_CalcBob(pparams, 1.00f, CalcBobMode::VB_SIN, bobTimes[2], bobForward, lastTimes[2]);
+
+	if ((Vector(pparams->simvel).Length2D() - 50.0f) > pparams->movevars->maxspeed)
+	{
+		flBobScale = lerp(flBobScale, 0.5f, pparams->frametime * 15.0f);
+	}
+	else
+	{
+		flBobScale = lerp(flBobScale, 0.2f, pparams->frametime * 15.0f);
+	}
+
 
 	for (int i = 0; i < 3; i++)
 	{
-		view->origin[i] += bobright.bob * 0.33 * pparams->right[i];
-		view->origin[i] -= bobup.bob * 0.30 * pparams->up[i];
-		view->origin[i] -= 1 * pparams->up[i];
+		view->origin[i] += (bobRight * 0.72f) * pparams->right[i] * flBobScale;
+		view->origin[i] += (bobUp * 0.47f) * pparams->up[i] * flBobScale;
 	}
 
-	view->angles[0] += bobup.bob * 0.19;
-	view->angles[1] -= bobright.bob * 0.73;
-	view->angles[2] += bobup.bob * 0.13;
+	pparams->viewangles[0] += (bobUp * 0.42f) * flBobScale;
+	pparams->viewangles[1] += (bobRight * 0.652f) * flBobScale;
 
-	pparams->viewangles[0] += bobup.bob * 0.14;
-	pparams->viewangles[1] += bobright.bob * 0.17;
-
-	gHUD.m_flHudLagOfs[0] += (bobright.bob  - (ev_punchangle[1])) * 2;
-	gHUD.m_flHudLagOfs[1] += (bobup.bob  - (ev_punchangle[0])) * 2;
+	gHUD.m_flHudLagOfs[0] += (bobRight  - (ev_punchangle[1])) * 3.0f * flBobScale;
+	gHUD.m_flHudLagOfs[1] += (bobUp  - (ev_punchangle[0])) * 3.0f * flBobScale;
 }
 
 void V_CalcViewRoll ( struct ref_params_s *pparams, cl_entity_s* view, cl_entity_s* viewent)
 {
-	static float l_side = 0.0f, l_forward = 0.0f;
-	float side = 0.0f, forward = 0.0f;
+	static float interp_roll = 0;
 
-	Vector vforward;
+	float roll = V_CalcRoll(viewent->angles, pparams->simvel, cl_rollangle->value, cl_rollspeed->value, YAW);
 
-	AngleVectors(Vector(-view->angles[0], view->angles[1], view->angles[2]), vforward, NULL, NULL);
+	interp_roll = lerp(interp_roll, roll, pparams->frametime * 17.0f);
 
-	// calculate the up and right values
-	side = V_CalcRoll(viewent->angles, pparams->simvel, cl_rollangle->value, cl_rollspeed->value, YAW /*RIGHT*/);
+	view->angles[ROLL] += interp_roll * 1.5f;
 
-	// interpolate the values
-	l_side = lerp(l_side, side * 1.2, pparams->frametime * 17.0f);
-	l_forward = lerp(l_forward, forward * 0.8, pparams->frametime * 9.0f);
-
-	// apply the values
-	view->origin = view->origin - vforward * fabs(l_forward);
-	view->angles[0] -= (l_forward);
-	pparams->viewangles[ROLL] += l_side;
-
-	gHUD.m_flHudLagOfs[0] += l_side;
+	gHUD.m_flHudLagOfs[0] += interp_roll * 1.5f;
 }
 
 void V_ApplyPunchAngles(struct ref_params_s* pparams, cl_entity_s* view)
 {
-	gHUD.m_flHudLagOfs[0] = (ev_punchangle[1]) * 2;
-	gHUD.m_flHudLagOfs[1] = (ev_punchangle[0]) * 2;
+	gHUD.m_flHudLagOfs[0] = (ev_punchangle[1]) * 2.5f;
+	gHUD.m_flHudLagOfs[1] = (ev_punchangle[0]) * 2.5f;
 
 	// Add in the punchangle, if any
 	VectorAdd(pparams->viewangles, pparams->punchangle, pparams->viewangles);
@@ -697,13 +794,22 @@ void V_CalcViewAngles(struct ref_params_s* pparams, cl_entity_s* view)
 	if (!viewentity)
 		return;
 
+	const int idx = 0;
+	vec3_t boneangle = g_StudioRenderer.viewboneangles[idx] - g_StudioRenderer.viewfirstboneangles[idx];
+	for (int i = 0; i < 3; i++)
+	{
+		if (fabs(boneangle[i]) > 1)
+			continue;
+
+		g_StudioRenderer.lerpedboneangles[i] = lerp(g_StudioRenderer.lerpedboneangles[i], boneangle[i], pparams->frametime * 20.0f);
+	}
 
 	V_ApplyPunchAngles(pparams, view);
 	V_CalcViewRoll(pparams, view, viewentity);
 	V_CalcHudLag(pparams);
 	V_ApplyBob(pparams, view);
 	V_HandIntertia(pparams, view, view->prevstate.angles);
-	V_RetractWeapon(pparams, view);
+	V_HandleWalls(pparams);
 	V_Jump(pparams, view);
 	V_ApplyCrouchAngles(pparams, view);
 
@@ -711,6 +817,7 @@ void V_CalcViewAngles(struct ref_params_s* pparams, cl_entity_s* view)
 	// apply angles
 	VectorCopy(view->angles, view->curstate.angles);
 	VectorCopy(view->angles, view->prevstate.angles);
+	VectorAdd(pparams->viewangles, g_StudioRenderer.lerpedboneangles * 1.35f, pparams->viewangles);
 }
 
 /*
@@ -833,6 +940,8 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 
 	static Vector viewheight = VEC_VIEW;
 
+	auto pShake = gHUD.GetScreenShake();
+
 	V_DriftPitch(pparams);
 
 	static float l_deadangle = 0;
@@ -883,6 +992,9 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 
 	gEngfuncs.V_CalcShake();
 	gEngfuncs.V_ApplyShake( pparams->vieworg, pparams->viewangles, 1.0 );
+
+	V_CalcShake(pShake);
+	V_ApplyShake(pShake, pparams->vieworg, pparams->viewangles, 1.0);
 
 	// Check for problems around water, move the viewer artificially if necessary 
 	// -- this prevents drawing errors in GL due to waves
@@ -1004,14 +1116,12 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 
 	// Let the viewmodel shake at about 10% of the amplitude
 	gEngfuncs.V_ApplyShake( view->origin, view->angles, 0.9 );
+	V_ApplyShake(pShake, view->origin, view->angles, 0.9);
 
 	// pushing the view origin down off of the same X/Z plane as the ent's origin will give the
 	// gun a very nice 'shifting' effect when the player looks up/down. If there is a problem
 	// with view model distortion, this may be a cause. (SJB). 
-	if (cl_viewmodel_fudge->value)
-	{
-		view->origin[2] -= 1;
-	}
+	view->origin -= Vector(pparams->up) * 1;
 
 	V_CalcViewAngles(pparams, view);
 
@@ -1930,7 +2040,7 @@ void V_CalcSpectatorRefdef ( struct ref_params_s * pparams )
 
 	// write back new values into pparams
 	VectorCopy ( v_cl_angles, pparams->cl_viewangles );
-	VectorCopy ( v_angles, pparams->viewangles )
+	VectorCopy ( v_angles, pparams->viewangles );
 	VectorCopy ( v_origin, pparams->vieworg );
 
 }
@@ -1951,6 +2061,10 @@ void DLLEXPORT V_CalcRefdef( struct ref_params_s *pparams )
 	else if ( !pparams->paused )
 	{
 		V_CalcNormalRefdef ( pparams );
+	}
+	if (pparams->paused == 0)
+	{
+		gHUD.m_flAbsTime += pparams->frametime;
 	}
 
 	g_refparams = *pparams;
@@ -1998,8 +2112,6 @@ void V_Init (void)
 	cl_bobup			= gEngfuncs.pfnRegisterVariable( "cl_bobup","0.5", 0 );
 	cl_waterdist		= gEngfuncs.pfnRegisterVariable( "cl_waterdist","4", 0 );
 	cl_chasedist		= gEngfuncs.pfnRegisterVariable( "cl_chasedist","112", 0 );
-
-	cl_viewmodel_fudge = gEngfuncs.pfnRegisterVariable("cl_viewmodel_fudge", "1", 0);
 }
 
 
@@ -2372,13 +2484,13 @@ R_SetFrustum
 
 =================
 */
-void R_SetFrustum ( const vec3_t& v_origin, const vec3_t& v_angles, float viewsize )
+void R_SetFrustum (const vec3_t& vOrigin, const vec3_t& vAngles, float flFOV, float flFarDist)
 {
 	int		i;
 	vec3_t vpn, vright, vup;
-	AngleVectors(v_angles, vpn, vright, vup);
+	AngleVectors(vAngles, vpn, vright, vup);
 
-	if (viewsize == 90) 
+	if (flFOV == 90)
 	{
 		// front side is visible
 		VectorAdd (vpn, vright, frustum[0].normal);
@@ -2390,19 +2502,19 @@ void R_SetFrustum ( const vec3_t& v_origin, const vec3_t& v_angles, float viewsi
 	else
 	{
 		// rotate VPN right by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90-viewsize / 2 ) );
+		RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90- flFOV / 2 ) );
 		// rotate VPN left by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[1].normal, vup, vpn, 90-viewsize / 2 );
+		RotatePointAroundVector( frustum[1].normal, vup, vpn, 90- flFOV / 2 );
 		// rotate VPN up by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[2].normal, vright, vpn, 90-viewsize / 2 );
+		RotatePointAroundVector( frustum[2].normal, vright, vpn, 90- flFOV / 2 );
 		// rotate VPN down by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - viewsize / 2 ) );
+		RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - flFOV / 2 ) );
 	}
 
 	for (i=0 ; i<4 ; i++)
 	{
 		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct (v_origin, frustum[i].normal);
+		frustum[i].dist = DotProduct (vOrigin, frustum[i].normal);
 		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
 	}
 }

@@ -68,7 +68,7 @@
       </HeaderFileName>
     </Midl>
     <ClCompile>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\dlls;..\common;..\pm_shared;..\engine;..\utils\vgui\include;..\game_shared;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;WIN32;_WINDOWS;CLIENT_DLL;_CRT_SECURE_NO_DEPRECATE;CLIENT_WEAPONS;ELIGHTS;HL25_UPDATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -89,7 +89,7 @@
       <SupportJustMyCode>true</SupportJustMyCode>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
     </ClCompile>
     <ResourceCompile>
@@ -112,10 +112,10 @@
       <OutputFile>.\Debug/cl_dll.bsc</OutputFile>
     </Bscmake>
     <PostBuildEvent>
-      <Message>
-      </Message>
-      <Command>
-      </Command>
+      <Message>Installing client files</Message>
+      <Command>cmd /c ""$(ProjectDir)..\filecopy.bat" "$(OutDir)" "cl_dlls" "$(TargetFileName)""
+cmd /c ""$(ProjectDir)..\filecopy.bat" "$(OutDir)" "cl_dlls" "$(TargetName).pdb""
+cmd /c ""$(ProjectDir)..\filecopy.bat" "$(SolutionDir)network" "" "delta.lst""</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -171,10 +171,10 @@
       <OutputFile>.\Release/cl_dll.bsc</OutputFile>
     </Bscmake>
     <PostBuildEvent>
-      <Message>
-      </Message>
-      <Command>
-      </Command>
+      <Message>Installing client files</Message>
+      <Command>cmd /c ""$(ProjectDir)..\filecopy.bat" "$(OutDir)" "cl_dlls" "$(TargetFileName)""
+cmd /c ""$(ProjectDir)..\filecopy.bat" "$(OutDir)" "cl_dlls" "$(TargetName).pdb""
+cmd /c ""$(ProjectDir)..\filecopy.bat" "$(SolutionDir)network" "" "delta.lst""</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -363,6 +363,8 @@
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <ClCompile Include="r_ripples.cpp" />
+    <ClCompile Include="r_water.cpp" />
     <ClCompile Include="saytext.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -685,6 +687,8 @@
     <ClInclude Include="..\pm_shared\pm_movevars.h" />
     <ClInclude Include="..\pm_shared\pm_shared.h" />
     <ClInclude Include="studio_util.h" />
+    <ClInclude Include="r_turbsin.h" />
+    <ClInclude Include="r_water.h" />
     <ClInclude Include="StudioModelRenderer.h" />
     <ClInclude Include="svd_render.h" />
     <ClInclude Include="svdformat.h" />

@@ -21,6 +21,8 @@
 #include "pm_shared.h"
 #include "fog.h"
 
+#include "r_water.h"
+
 #define DLLEXPORT __declspec( dllexport )
 
 void Game_AddObjects( void );
@@ -53,6 +55,9 @@ HUD_AddEntity
 */
 int DLLEXPORT HUD_AddEntity( int type, struct cl_entity_s *ent, const char *modelname )
 {
+	if (g_WaterRenderer.AddEntity(ent))
+		return 0;
+
 	switch ( type )
 	{
 	case ET_NORMAL:

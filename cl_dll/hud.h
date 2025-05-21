@@ -30,6 +30,20 @@
 #include "ammo.h"
 #include "ref_params.h"
 #include <cstdint>
+#include "cvardef.h"
+
+typedef struct screen_shake_s
+{
+	float time;
+	float duration;
+	float amplitude;
+	float frequency;
+	float next_shake;
+	Vector offset;
+	float angle;
+	Vector applied_offset;
+	float applied_angle;
+} screen_shake_t;
 
 #define DHN_DRAWZERO 1
 #define DHN_2DIGITS  2
@@ -578,11 +592,8 @@ public:
 	Vector	m_vecAngles;
 	int		m_iKeyBits;
 	int		m_iHideHUDDisplay;
-	// Smooth zooming
-	float m_iFOV;
-	double m_iTargetFOV;
+	int		m_iFOV;
 
-	struct cvar_s* default_fov;
 	struct cvar_s* r_autofov;
 
 	int		m_Teamplay;
@@ -611,7 +622,7 @@ public:
 
 	bool HasAnyWeapons() const
 	{
-		return (m_iWeaponBits & ~static_cast<std::uint64_t>(WEAPON_SUIT)) != 0;
+		return (m_iWeaponBits & ~(1ULL << WEAPON_SUIT)) != 0;
 	}
 
 private:
@@ -620,6 +631,8 @@ private:
 	SpriteHandle_t *m_rgSpriteHandle_ts;	/*[HUD_SPRITE_COUNT]*/			// the sprites loaded from hud.txt
 	wrect_t *m_rgrcRects;	/*[HUD_SPRITE_COUNT]*/
 	char *m_rgszSpriteNames; /*[HUD_SPRITE_COUNT][MAX_SPRITE_NAME_LENGTH]*/
+	struct cvar_s* default_fov;
+	screen_shake_t m_ScreenShake;
 
 public:
 	SpriteHandle_t GetSprite( int index ) 
@@ -713,6 +726,19 @@ public:
 	int m_iLaserState;
 
 	float m_iLaserSuspendTime;
+
+	void ScreenShake(const Vector& center, float amplitude, float duration, float frequency, float radius);
+	void ScreenShake(float amplitude, float duration, float frequency);
+
+	int DefaultFov()
+	{
+		return (int)default_fov->value;
+	}
+
+	screen_shake_t* GetScreenShake()
+	{
+		return &m_ScreenShake;
+	}
 
 	int GetCurrentWeaponId()
 	{

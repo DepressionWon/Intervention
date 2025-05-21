@@ -167,6 +167,26 @@ void CHandGrenade::PrimaryAttack()
 	}
 }
 
+void CHandGrenade::SecondaryAttack()
+{
+	if (!m_flStartThrow && m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] > 0)
+	{
+		m_flStartThrow = gpGlobals->time;
+		m_flReleaseThrow = 1;
+
+		Vector vecSrc = m_pPlayer->pev->origin + m_pPlayer->pev->view_ofs + gpGlobals->v_forward * 16;
+		Vector vecThrow = gpGlobals->v_forward * 10 + m_pPlayer->pev->velocity;
+
+		SendWeaponAnim(HANDGRENADE_SHORTTHROW);
+		CGrenade::ShootTimed(m_pPlayer->pev, vecSrc, vecThrow, 2);
+
+		m_flStartThrow = 0;
+		m_flNextSecondaryAttack = UTIL_WeaponTimeBase() + 1;
+		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 0.5;
+		m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType]--;
+
+	}
+}
 
 void CHandGrenade::WeaponIdle( void )
 {

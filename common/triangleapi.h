@@ -53,6 +53,7 @@ typedef struct triangleapi_s
 	int			( *WorldToScreen ) ( float *world, float *screen );  // Returns 1 if it's z clipped
 	void		( *Fog ) ( float flFogColor[3], float flStart, float flEnd, int bOn ); //Works just like GL_FOG, flFogColor is r/g/b.
 	void		( *ScreenToWorld ) ( float *screen, float *world  ); 
+	int			(*BoxInPVS)(float* mins, float* maxs);
 
 } triangleapi_t;
 

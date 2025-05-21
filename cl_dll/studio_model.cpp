@@ -91,11 +91,6 @@ void CStudioModelRenderer::StudioSetupRenderer(int rendermode)
 	m_uiActiveTextureId = 0;
 }
 
-
-// ================================= //
-// =====	Stencil Shadows	   ===== //
-// ================================= //
-
 /*
 ====================
 StudioGetMinsMaxs
@@ -208,6 +203,10 @@ void CStudioModelRenderer::StudioEntityLight(void)
     }
 }
 
+// ================================= //
+// =====	Stencil Shadows	   ===== //
+// ================================= //
+
 /*
 ====================
 StudioSetupShadows
@@ -258,88 +257,6 @@ void CStudioModelRenderer::StudioSetupModelSVD(int bodypart)
     index = index % pbodypart->numsubmodels;
 
     m_pSVDSubModel = (svdsubmodel_t*)((byte*)m_pSVDHeader + pbodypart->submodelindex) + index;
-}
-
-/*
-====================
-GL_StudioDrawShadow
-
-====================
-*/
-void CStudioModelRenderer::GL_StudioDrawShadow(void)
-{
-    if (m_pCurrentEntity == gEngfuncs.GetViewModel())
-        return;
-
-    if (!m_pSubModel->numverts)
-        return;
-
-    if (m_pCvarDrawShadows->value != 0)
-        return;
-
-    vec3_t shadeVector;
-    if (m_iClosestLight != -1)
-    {
-        vec3_t origin;
-        for (int i = 0; i < 3; i++)
-            origin[i] = (*m_protationmatrix)[i][3];
-
-        VectorSubtract(m_pCurrentEntity->origin, m_pEntityLights[m_iClosestLight]->origin, shadeVector);
-        VectorNormalizeFast(shadeVector);
-        VectorInverse(shadeVector);
-    }
-    else
-    {
-        shadeVector[0] = 0.3;
-        shadeVector[1] = 0.5;
-        shadeVector[2] = 1;
-    }
-    glDepthMask(GL_TRUE);
-    glDepthFunc(GL_LESS);
-    glDisable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glColor4f(GL_ZERO, GL_ZERO, GL_ZERO, 0.5);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    for (int j = 0; j < m_pSubModel->nummesh; j++)
-    {
-        mstudiomesh_t* pmesh = (mstudiomesh_t*)((byte*)m_pStudioHeader + m_pSubModel->meshindex) + j;
-        short* ptricmds = (short*)((byte*)m_pStudioHeader + pmesh->triindex);
-
-        int i = 0;
-        while (i = *(ptricmds++))
-        {
-            if (i < 0)
-            {
-                glBegin(GL_TRIANGLE_FAN);
-                i = -i;
-            }
-            else
-            {
-                glBegin(GL_TRIANGLE_STRIP);
-            }
-
-            for (; i > 0; i--, ptricmds += 4)
-            {
-                vec3_t* pvertex = m_vertexTransform + ptricmds[0];
-                float f1 = pvertex->y;
-                float f2 = pvertex->z - m_flShadowHeight;
-                float f3 = pvertex->x - shadeVector[0] * f2;
-
-                float vz = m_flShadowHeight + 0.1;
-                float vx = f3;
-                float vy = f1 - f2 * shadeVector[1];
-
-                glVertex3f(vx, vy, vz);
-            }
-            glEnd();
-        }
-    }
-
-    glEnable(GL_TEXTURE_2D);
-    glDisable(GL_BLEND);
-    glColor4f(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
-    glDepthFunc(GL_LEQUAL);
 }
 
 /*
@@ -684,36 +601,31 @@ StudioLightsforVertex
 */
 __forceinline void CStudioModelRenderer::StudioLightsforVertex(int index, byte boneindex, const vec3_t& origin)
 {
-	static unsigned int i;
-	static vec3_t dir;
+    for (unsigned int i = 0; i < m_iNumEntityLights; i++)
+    {
+        elight_t* plight = m_pEntityLights[i];
 
-	static float radius;
-	static float dist;
-	static float attn;
+        Vector dir;
+        VectorSubtract(m_lightLocalOrigins[i][boneindex], origin, dir);
 
-	static elight_t* plight;
+        float dist2 = DotProduct(dir, dir);
+        float dist = sqrtf(dist2);
 
-	for (i = 0; i < m_iNumEntityLights; i++)
-	{
-		plight = m_pEntityLights[i];
+        // Quadratic attenuation
+        float attn = 1.0f - clamp(dist / plight->radius, 0.0f, 1.0f);
+        attn *= attn;
+        attn = clamp(attn, 0.0f, 1.0f);
 
-		// Inverse square radius
-		radius = plight->radius * plight->radius;
-		VectorSubtract(m_lightLocalOrigins[i][boneindex], origin, dir);
+        m_lightStrengths[i][index] = attn;
 
-		dist = DotProduct(dir, dir);
-		attn = max((dist / radius - 1) * -1, 0);
-
-		m_lightStrengths[i][index] = attn;
-
-		VectorNormalizeFast(dir);
-		VectorCopy(dir, m_lightShadeVectors[i][index]);
-	}
+        VectorNormalizeFast(dir);
+        VectorCopy(dir, m_lightShadeVectors[i][index]);
+    }
 }
 
 /*
 ====================
-StudioLightsforVertex
+StudioLighting
 
 ====================
 */
@@ -757,24 +669,32 @@ LightValueforVertex
 
 ====================
 */
-__forceinline void CStudioModelRenderer::LightValueforVertex(vec3_t& outColor, int vertindex, int normindex, const vec3_t& normal)
+__forceinline void CStudioModelRenderer::LightValueforVertex(vec3_t& outColor, int vertindex, int normindex, const vec3_t& normal, const vec3_t& origin)
 {
-	static float fldot;
-	static unsigned int i;
+    outColor = m_lightValues[normindex];
 
-	static elight_t* plight;
-	outColor = m_lightValues[normindex];
+    if (m_iNumEntityLights)
+    {
+        for (unsigned int i = 0; i < m_iNumEntityLights; i++)
+        {
+            elight_t* plight = m_pEntityLights[i];
 
-	if (m_iNumEntityLights)
-	{
-		for (i = 0; i < m_iNumEntityLights; i++)
-		{
-			plight = m_pEntityLights[i];
+            float fldot = max(DotProduct(normal, m_lightShadeVectors[i][vertindex]), 0);
+            VectorMA(outColor, m_lightStrengths[i][vertindex] * fldot, plight->color, outColor);
 
-			fldot = max(DotProduct(normal, m_lightShadeVectors[i][vertindex]), 0);
-			VectorMA(outColor, m_lightStrengths[i][vertindex] * fldot, plight->color, outColor);
-		}
-	}
+            // Specular
+			Vector viewDir = (Vector(m_vRenderOrigin) - Vector(m_pCurrentEntity->origin)).Normalize();
+            Vector halfVec = (m_lightShadeVectors[i][vertindex] + viewDir).Normalize();
+            float spec = powf(max(DotProduct(normal, halfVec), 0.0f), 16.0f);
+            Vector specColor = plight->color * spec * m_lightStrengths[i][vertindex] * 0.2f;
+            VectorAdd(outColor, specColor, outColor);
+        }
+    }
+
+    // Clamp color
+    outColor[0] = clamp(outColor[0], 0.0f, 1.0f);
+    outColor[1] = clamp(outColor[1], 0.0f, 1.0f);
+    outColor[2] = clamp(outColor[2], 0.0f, 1.0f);
 }
 
 /*
@@ -837,7 +757,7 @@ void CStudioModelRenderer::StudioDrawMesh(mstudiomesh_t* pmesh, mstudiotexture_t
 
 			for (; i > 0; i--, ptricmds += 4)
 			{
-				LightValueforVertex(color, ptricmds[0], ptricmds[1], pstudionorms[ptricmds[1]]);
+				LightValueforVertex(color, ptricmds[0], ptricmds[1], pstudionorms[ptricmds[1]], pstudioverts[ptricmds[0]]);
 
 				glTexCoord2f(m_chromeCoords[ptricmds[1]][0], m_chromeCoords[ptricmds[1]][1]);
 				glColor4f(color[0], color[1], color[2], alpha);
@@ -862,7 +782,7 @@ void CStudioModelRenderer::StudioDrawMesh(mstudiomesh_t* pmesh, mstudiotexture_t
 
 			for (; i > 0; i--, ptricmds += 4)
 			{
-				LightValueforVertex(color, ptricmds[0], ptricmds[1], pstudionorms[ptricmds[1]]);
+				LightValueforVertex(color, ptricmds[0], ptricmds[1], pstudionorms[ptricmds[1]], pstudioverts[ptricmds[0]]);
 
 				glTexCoord2i(ptricmds[2], ptricmds[3]);
 				glColor4f(color[0], color[1], color[2], alpha);

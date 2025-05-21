@@ -15,6 +15,8 @@
 #ifndef CVARDEF_H
 #define CVARDEF_H
 
+#pragma once
+
 #define	FCVAR_ARCHIVE		(1<<0)	// set to cause it to be saved to vars.rc
 #define	FCVAR_USERINFO		(1<<1)	// changes the client's info string
 #define	FCVAR_SERVER		(1<<2)	// notifies players when changed

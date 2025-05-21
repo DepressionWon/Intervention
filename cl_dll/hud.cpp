@@ -776,7 +776,6 @@ void CHud :: Init( void )
 
 	m_iLogo = 0;
 	m_iFOV = 0;
-	m_iTargetFOV = 0;
 
 	CVAR_CREATE( "zoom_sensitivity_ratio", "1.2", 0 );
 	default_fov = CVAR_CREATE( "default_fov", "90", 0 );
@@ -1115,11 +1114,11 @@ int CHud::MsgFunc_SetFOV(const char *pszName,  int iSize, void *pbuf)
 
 	if ( newfov == 0 )
 	{
-		m_iTargetFOV = def_fov;
+		m_iFOV = def_fov;
 	}
 	else
 	{
-		m_iTargetFOV = newfov;
+		m_iFOV = newfov;
 	}
 
 	// the clients fov is actually set in the client data update section of the hud

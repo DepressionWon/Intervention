@@ -157,6 +157,8 @@ inline void UnpackRGB(int &r, int &g, int &b, unsigned long ulRGB)\
 
 SpriteHandle_t LoadSprite(const char *pszName);
 
+void V_LocalScreenShake(screen_shake_t* shake, float amplitude, float duration, float frequency);
+
 // frac should always be multiplied by frametime
 float lerp(float start, float end, float frac);
 double dlerp(double start, double end, double frac);

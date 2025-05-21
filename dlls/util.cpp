@@ -31,7 +31,8 @@
 #include "weapons.h"
 #include "gamerules.h"
 #include "UserMessages.h"
-#include <cstdint>
+#include <cstdlib>
+#include <stdlib.h>
 
 float UTIL_WeaponTimeBase( void )
 {
@@ -42,19 +43,7 @@ float UTIL_WeaponTimeBase( void )
 #endif
 }
 
-// Add the NormalizeAngles function implementation to resolve the undefined identifier error.  
-// like holy shit bro do i wanna modernize the sdk? no not really.
-Vector NormalizeAngles(const Vector& angles)
-{
-	Vector normalized = angles;
-	while (normalized.x > 180.0f) normalized.x -= 360.0f;
-	while (normalized.x < -180.0f) normalized.x += 360.0f;
-	while (normalized.y > 180.0f) normalized.y -= 360.0f;
-	while (normalized.y < -180.0f) normalized.y += 360.0f;
-	while (normalized.z > 180.0f) normalized.z -= 360.0f;
-	while (normalized.z < -180.0f) normalized.z += 360.0f;
-	return normalized;
-}
+void NormalizeAngles(float* angles);
 
 static unsigned int glSeed = 0; 
 

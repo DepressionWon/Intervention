@@ -612,9 +612,20 @@ __forceinline void CStudioModelRenderer::StudioLightsforVertex(int index, byte b
         float dist = sqrtf(dist2);
 
         // Quadratic attenuation
-        float attn = 1.0f - clamp(dist / plight->radius, 0.0f, 1.0f);
+		float t = clamp(dist / plight->radius, 0.0f, 1.0f);
+		float attn = 1.0f - t * t * (3.0f - 2.0f * t);
         attn *= attn;
         attn = clamp(attn, 0.0f, 1.0f);
+
+        if (plight->isSpot) 
+		{
+            Vector toVertex = (origin - plight->origin).Normalize();
+            float spotEffect = DotProduct(toVertex, plight->direction);
+            float angle = acosf(spotEffect);
+            if (angle > plight->outerAngle) continue;
+            float spotAttn = clamp((plight->outerAngle - angle) / (plight->outerAngle - plight->innerAngle), 0.0f, 1.0f);
+            attn *= spotAttn;
+        }
 
         m_lightStrengths[i][index] = attn;
 

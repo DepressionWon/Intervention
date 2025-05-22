@@ -22,5 +22,9 @@ struct elight_t
 	vec3_t maxs;
 
 	bool temporary;
+
+	Vector direction;
+	float innerAngle, outerAngle;
+	bool isSpot;
 };
 #endif

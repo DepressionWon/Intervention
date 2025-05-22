@@ -16,3 +16,7 @@ it uses elights and dlights from maps and events like battery light, flashlight,
 
 
 features will be posted when i remember.. expect some source implementations.. going for that early extra early source look.
+
+
+
+![Screenshot 2025-05-21 204132](https://github.com/user-attachments/assets/d5a79128-522f-475c-a00d-4bc3d1205cbb)
